@@ -3,8 +3,15 @@ import textToSpeech from "@google-cloud/text-to-speech";
 
 export async function POST(request: NextRequest) {
   const { text, voice } = await request.json();
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    return new Response("Missing Google service account key", { status: 500 });
+  }
+
+  const serviceAccountKey = JSON.parse(
+    process.env.GOOGLE_SERVICE_ACCOUNT_KEY as string
+  );
   const client = new textToSpeech.TextToSpeechClient({
-    keyFilename: process.env.KEY_FILE_NAME,
+    credentials: serviceAccountKey,
   });
   if (!text) {
     return new Response("Missing text or voice", { status: 400 });
