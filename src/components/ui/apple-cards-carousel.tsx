@@ -5,6 +5,7 @@ import React, {
   useState,
   createContext,
   useContext,
+  useCallback,
 } from "react";
 import {
   IconArrowNarrowLeft,
@@ -13,11 +14,11 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
-import Image, { ImageProps } from "next/image";
+import NextImage, { ImageProps } from "next/image"; // Add this if you'll use it for replacements
 import { useOutsideClick } from "@/hooks/use-outside-click";
 
 interface CarouselProps {
-  items: JSX.Element[];
+  items: React.ReactElement[];
   initialScroll?: number;
 }
 
@@ -36,11 +37,11 @@ export const CarouselContext = createContext<{
   currentIndex: 0,
 });
 
-export const Carousel = ({ items, initialScroll = 0 }: CarouselProps) => {
+const AppleCardsCarousel = ({ items, initialScroll = 0 }: CarouselProps) => {
   const carouselRef = React.useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [, setCurrentIndex] = useState(0); // Removed unused variable currentIndex
 
   useEffect(() => {
     if (carouselRef.current) {
@@ -88,7 +89,7 @@ export const Carousel = ({ items, initialScroll = 0 }: CarouselProps) => {
 
   return (
     <CarouselContext.Provider
-      value={{ onCardClose: handleCardClose, currentIndex }}
+      value={{ onCardClose: handleCardClose, currentIndex: 0 }}
     >
       <div className="relative w-full">
         <div
@@ -164,7 +165,12 @@ export const Card = ({
 }) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { onCardClose, currentIndex } = useContext(CarouselContext);
+  const { onCardClose } = useContext(CarouselContext);
+
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    onCardClose(index);
+  }, [index, onCardClose]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -177,21 +183,17 @@ export const Card = ({
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "auto";
+      handleClose(); // Call handleClose if component is closed
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [handleClose, open]); // Added open to dependency array
 
   useOutsideClick(containerRef, () => handleClose());
 
   const handleOpen = () => {
     setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-    onCardClose(index);
   };
 
   return (
@@ -256,10 +258,11 @@ export const Card = ({
             {card.title}
           </motion.p>
         </div>
-        <BlurImage
+        <NextImage
           src={card.src}
           alt={card.title}
-          fill
+          width={500}
+          height={300}
           className="absolute inset-0 z-10 object-cover"
         />
       </motion.button>
@@ -277,7 +280,7 @@ export const BlurImage = ({
 }: ImageProps) => {
   const [isLoading, setLoading] = useState(true);
   return (
-    <img
+    <NextImage
       className={cn(
         "h-full w-full transition duration-300",
         isLoading ? "blur-sm" : "blur-0",
@@ -295,3 +298,5 @@ export const BlurImage = ({
     />
   );
 };
+
+export default AppleCardsCarousel;

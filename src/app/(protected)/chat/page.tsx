@@ -1,13 +1,38 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
+import React, { Suspense } from "react";
 import { persons } from "@/lib/personsData";
 import { useSearchParams } from "next/navigation";
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Send, Mic, MicOff, Volume2 } from "lucide-react";
+// This is the main page component - it's server-side
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<ChatLoading />}>
+      <ChatContent />
+    </Suspense>
+  );
+}
 
-function ChatPage() {
+// Simple loading state
+function ChatLoading() {
+  return (
+    <div className="flex h-[calc(100vh-64px)] items-center justify-center">
+      <div className="flex flex-col items-center space-y-4">
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <p className="text-lg font-medium text-muted-foreground">
+          Loading chat...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// The actual chat content as a client component with useSearchParams
+// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+
+function ChatContent() {
   const searchParams = useSearchParams();
   const name = searchParams.get("name");
   const personData =
@@ -83,16 +108,6 @@ function ChatPage() {
   };
 
   const generateResponse = async (userInput: string) => {
-    // Simple response generation - will be replaced with actual AI
-    // const responses = [
-    //   "I understand how you feel about that.",
-    //   "Tell me more about your day!",
-    //   "That sounds interesting. What else is on your mind?",
-    //   `As ${personData.name}, I find that fascinating!`,
-    //   "I'd love to hear more about that.",
-    //   "What do you mean by that exactly?",
-    // ];
-
     const response = await fetch("/api/ai-chat", {
       method: "POST",
       headers: {
@@ -109,13 +124,10 @@ function ChatPage() {
       return { error: "No output from AI" };
     }
     return responseData.output;
-    // return responses[Math.floor(Math.random() * responses.length)];
   };
 
   const toggleListening = () => {
     setIsListening(!isListening);
-    // Here you'll integrate SpeechRecognition API
-    // For now it's just a placeholder
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
@@ -125,14 +137,11 @@ function ChatPage() {
     }
     const r = new SpeechRecognition();
     if (!isListening) {
-      // Start speech recognition
-      console.log("Speech recognition would start here");
       r.lang = "en-IN";
       r.interimResults = false;
       r.maxAlternatives = 1;
 
       r.onstart = () => {
-        console.log("Speech recognition started");
         setIsListening(true);
       };
 
@@ -152,13 +161,10 @@ function ChatPage() {
         setIsListening(false);
       };
       r.onend = () => {
-        console.log("Speech recognition ended");
         setIsListening(false);
       };
       r.start();
     } else {
-      // Stop speech recognition
-      console.log("Speech recognition would stop here");
       r.stop();
     }
   };
@@ -186,7 +192,6 @@ function ChatPage() {
       const audioBlob = await audioResponse.blob();
 
       if (audioBlob) {
-        // const audioBlob = data.audioContent;
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
 
@@ -218,7 +223,6 @@ function ChatPage() {
   };
 
   const formatTime = (date: Date) => {
-    // Using fixed 24-hour format to avoid locale differences
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
     return `${hours}:${minutes}`;
@@ -341,5 +345,3 @@ function ChatPage() {
     </div>
   );
 }
-
-export default ChatPage;

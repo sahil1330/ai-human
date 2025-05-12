@@ -1,6 +1,6 @@
 "use client";
 import { animate, motion } from "motion/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { GoCopilot } from "react-icons/go";
 
@@ -20,58 +20,61 @@ export default function CardDemo() {
 }
 
 const Skeleton = () => {
-  const scale = [1, 1.1, 1];
-  const transform = ["translateY(0px)", "translateY(-4px)", "translateY(0px)"];
-  const sequence = [
-    [
-      ".circle-1",
-      {
-        scale,
-        transform,
-      },
-      { duration: 0.8 },
-    ],
-    [
-      ".circle-2",
-      {
-        scale,
-        transform,
-      },
-      { duration: 0.8 },
-    ],
-    [
-      ".circle-3",
-      {
-        scale,
-        transform,
-      },
-      { duration: 0.8 },
-    ],
-    [
-      ".circle-4",
-      {
-        scale,
-        transform,
-      },
-      { duration: 0.8 },
-    ],
-    [
-      ".circle-5",
-      {
-        scale,
-        transform,
-      },
-      { duration: 0.8 },
-    ],
-  ];
+  const sequence = useMemo(() => {
+    const scale = [1, 1.1, 1];
+    const transform = ["translateY(0px)", "translateY(-4px)", "translateY(0px)"];
+
+    return [
+      [
+        ".circle-1",
+        {
+          scale,
+          transform,
+        },
+        { duration: 0.8 },
+      ],
+      [
+        ".circle-2",
+        {
+          scale,
+          transform,
+        },
+        { duration: 0.8 },
+      ],
+      [
+        ".circle-3",
+        {
+          scale,
+          transform,
+        },
+        { duration: 0.8 },
+      ],
+      [
+        ".circle-4",
+        {
+          scale,
+          transform,
+        },
+        { duration: 0.8 },
+      ],
+      [
+        ".circle-5",
+        {
+          scale,
+          transform,
+        },
+        { duration: 0.8 },
+      ],
+    ];
+  }, []);
 
   useEffect(() => {
     animate(sequence, {
-      // @ts-ignore
+      // @ts-expect-error intentionally bypassing type check for demo purposes
       repeat: Infinity,
       repeatDelay: 1,
     });
-  }, []);
+  }, [sequence]);
   return (
     <div className="p-8 overflow-hidden h-full relative flex items-center justify-center">
       <div className="flex flex-row shrink-0 justify-center items-center gap-2">
