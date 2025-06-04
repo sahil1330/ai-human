@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
   if (!voice) {
     return new Response("Missing voice", { status: 400 });
   }
-  if (text.length > 200) {
-    return new Response("Text is too long", { status: 400 });
-  }
+  // if (text.length > 200) {
+  //   return new Response("Text is too long", { status: 400 });
+  // }
   const voiceRequest = {
     input: { text: text },
     // Select the language and SSML voice gender (optional)

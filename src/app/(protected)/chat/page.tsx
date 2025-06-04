@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { Suspense } from "react";
+import React, { Suspense, useCallback } from "react";
 import { persons } from "@/lib/personsData";
 import { useSearchParams } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Send, Mic, MicOff, Volume2 } from "lucide-react";
+import { toast } from "sonner";
 // This is the main page component - it's server-side
 export default function ChatPage() {
   return (
@@ -38,7 +39,7 @@ function ChatContent() {
   const personData =
     persons.find((person) => person.name === name) || persons[0];
   const { image, description } = personData;
-
+  console.log("name", name);
   const [messages, setMessages] = useState<
     {
       content: string;
@@ -59,9 +60,28 @@ function ChatContent() {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const [error, setError] = useState<string | null>(null);
   // Scroll to bottom when messages change
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, {
+        richColors: true,
+        duration: 5000,
+        position: "bottom-right",
+        action: {
+          label: "Dismiss",
+          onClick: () => setError(null),
+        },
+      });
+    }
+    setError(null);
+  }, [error]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -76,7 +96,7 @@ function ChatContent() {
     );
   }, [messages]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -118,54 +138,162 @@ function ChatContent() {
     const responseData = await response.json();
     if (responseData.error) {
       console.error("Error from AI:", responseData.error);
+      setError(responseData.error);
       return "Sorry, I couldn't process that.";
     }
     if (!responseData.output) {
+      setError("No output from AI");
       return { error: "No output from AI" };
     }
     return responseData.output;
   };
 
-  const toggleListening = () => {
+  const toggleListening = useCallback(async () => {
+    // setIsListening(!isListening);
+    // const SpeechRecognition =
+    //   (window as any).SpeechRecognition ||
+    //   (window as any).webkitSpeechRecognition;
+    // if (!SpeechRecognition) {
+    //   console.error("SpeechRecognition not supported in this browser.");
+    //   return;
+    // }
+    // const r = new SpeechRecognition();
+    // if (!isListening) {
+    //   r.lang = "en-IN";
+    //   r.interimResults = false;
+    //   r.maxAlternatives = 1;
+
+    //   r.onstart = () => {
+    //     setIsListening(true);
+    //   };
+
+    //   r.onresult = async (event: any) => {
+    //     const transcript = event.results[0][0].transcript;
+    //     setInput(transcript);
+    //     const userMessage = {
+    //       content: transcript.trim(),
+    //       isUser: true,
+    //       timestamp: new Date(),
+    //     };
+    //     setMessages((prev) => [...prev, userMessage]);
+    //     await speakMessage(transcript);
+    //   };
+    //   r.onerror = (event: any) => {
+    //     console.error("Speech recognition error", event.error);
+    //     setIsListening(false);
+    //   };
+    //   r.onend = () => {
+    //     setIsListening(false);
+    //   };
+    //   r.start();
+    // } else {
+    //   r.stop();
+    // }
+
     setIsListening(!isListening);
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.error("SpeechRecognition not supported in this browser.");
-      return;
-    }
-    const r = new SpeechRecognition();
+
     if (!isListening) {
-      r.lang = "en-IN";
-      r.interimResults = false;
-      r.maxAlternatives = 1;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
 
-      r.onstart = () => {
-        setIsListening(true);
-      };
+        streamRef.current = stream;
 
-      r.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        const userMessage = {
-          content: transcript.trim(),
+        let mimeType = "audio/webm;codecs=opus";
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = "audio/webm";
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = "audio/wav";
+          }
+        }
+
+        mediaRecorderRef.current = new MediaRecorder(stream, {
+          mimeType: mimeType,
+        });
+
+        audioChunksRef.current = [];
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorderRef.current.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: mediaRecorderRef.current?.mimeType,
+          });
+          await transcribeAudio(audioBlob);
+
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+          }
+        };
+
+        mediaRecorderRef.current.start();
+        mediaRecorderRef.current.onstart = () => {
+          setIsListening(true);
+        };
+      } catch (error) {
+        console.error("Error accessing microphone:", error);
+        setError("Could not access microphone. Please check permissions.");
+        setIsListening(false);
+      }
+    } else {
+      if (mediaRecorderRef.current && isListening) {
+        mediaRecorderRef.current.stop();
+        setIsListening(false);
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+      }
+    }
+  }, [isListening]);
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    try {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "recording.webm");
+
+      const response = await fetch("/api/get-Ai-response", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Transcription error:", errorData);
+        setError(errorData.error || "Transcription failed");
+        throw new Error(errorData.error || "Transcription failed");
+      }
+
+      const data = await response.json();
+      setMessages((prev) => [
+        ...prev,
+        {
+          content: data.transcription,
           isUser: true,
           timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, userMessage]);
-        await speakMessage(transcript);
-      };
-      r.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
-        setIsListening(false);
-      };
-      r.onend = () => {
-        setIsListening(false);
-      };
-      r.start();
-    } else {
-      r.stop();
+        },
+      ]);
+
+      if (data.transcription && data.transcription.trim()) {
+        const textResponseData = await generateResponse(
+          data.transcription.trim()
+        );
+        await speakMessage(textResponseData);
+      }
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
     }
   };
 
@@ -173,20 +301,21 @@ function ChatContent() {
     setIsSpeaking(true);
 
     try {
-      const textResponseData = await generateResponse(message);
       const audioResponse = await fetch("/api/synthesize-speech", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: textResponseData,
+          text: message,
           voice: personData.voice,
         }),
       });
 
       if (!audioResponse.ok) {
         throw new Error("Failed to convert text to speech");
+        setError("Failed to convert text to speech");
+        setIsSpeaking(false);
       }
 
       const audioBlob = await audioResponse.blob();
@@ -204,20 +333,24 @@ function ChatContent() {
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
         };
-        setMessages((prev) => [
-          ...prev,
-          {
-            content: textResponseData,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
+        if (!messages.some((msg) => msg.content === message)) {
+          // Only add the message if it doesn't already exist
+          setMessages((prev) => [
+            ...prev,
+            {
+              content: message,
+              isUser: false,
+              timestamp: new Date(),
+            },
+          ]);
+        }
         audio.play();
       } else {
         setIsSpeaking(false);
       }
     } catch (error) {
       console.error("Error speaking message:", error);
+      setError("Failed to convert text to speech");
       setIsSpeaking(false);
     }
   };
